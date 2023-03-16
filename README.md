@@ -41,13 +41,18 @@ for idx, trello_list in enumerate(all_lists):
 git clone https://github.com/vkorey/trellobot
 cd trellobot
 ```
+3. Create a virtual environment and activate it:
+```
+python -m venv venv
+source venv/bin/activate
+```
 
-3. Install the required dependencies:
+4. Install the required dependencies:
 ```
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the project's root folder and add the following variables:
+5. Create a `.env` file in the project's root folder and add the following variables:
 ```
 TOKEN=<your bot token>
 TRELLO_API_KEY=<your Trello API key>
