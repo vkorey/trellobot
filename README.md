@@ -39,7 +39,7 @@ for idx, trello_list in enumerate(all_lists):
 2.  Clone the repository:
    ```bash
 git clone https://github.com/vkorey/trellobot
-cd trello-bot
+cd trellobot
 ```
 
 3. Install the required dependencies:
