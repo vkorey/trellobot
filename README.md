@@ -38,7 +38,7 @@ for idx, trello_list in enumerate(all_lists):
     
 2.  Clone the repository:
    ```bash
-git clone https://github.com/vkorey/trello-bot.git
+git clone https://github.com/vkorey/trellobot
 cd trello-bot
 ```
 
