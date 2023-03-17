@@ -1,35 +1,64 @@
-## Trello Bot for Creating Cards
+## Trello Bot
 
-This program is a simple Telegram bot that allows users to create Trello cards directly from the chat. The bot prompts the user to select a board, enter the card's title and description, and attach files if necessary.
+This bot helps you create new Trello cards directly from Telegram. It supports attaching files and adding them to the card as well. The bot prompts the user to select a board, enter the card's title and description, and attach files if necessary.
 
-### Customization
 
-To customize the bot for your needs, you can modify the following lines in the `bot.py` file:
+### Configuration
 
-1.  Select the Trello boards you want to use with your bot by changing the indices in the following lines:
-```python
-boards = client.list_boards()[4], client.list_boards()[5]
-boards_name = boards[0].name, boards[1].name
+To set up the bot, you need to provide the following environment variables in a .env file:
+
+```
+TOKEN: Your Telegram bot token.
+TRELLO_API_KEY: Your Trello API key.
+TRELLO_API_SECRET: Your Trello API secret.
+TRELLO_API_TOKEN: Your Trello API token.
+SAVE_DIR: The directory where the attached files will be saved.
+BOARDS_COLUMNS: A comma-separated list of board and column indices. For example: 0.0,1.0.
+ALLOWED_USERS: A comma-separated list of Telegram user IDs that are allowed to use the bot. 
 ```
 
-Replace the numbers inside the square brackets with the indices of the boards you want to use. To list all your boards and their indices, you can run the following script:
+
+### Boards and columns
+
+To customize the bot for your needs, you can set the `BOARDS_COLUMNS` environment variable in the `.env` file:
+
+1.  Select the Trello boards and columns you want to use with your bot by specifying them in the `BOARDS_COLUMNS` environment variable. The format should be `board_index.column_index`, separated by commas if you want to use multiple boards:
+```
+BOARDS_COLUMNS=4.3, 5.3
+```
+
+This will select the 5th and 6th boards (remember, the index is zero-based) and the 4th column in each board.
+
+To list all your boards and their indices, you can run the following script:
 ```python
 all_boards = client.list_boards()
 for idx, board in enumerate(all_boards):
     print(f"{idx}: {board.name}")
 ```
 
-2. Choose the column in which to add the card in the `create_trello_card` function:
-```python
-trello_list = board.list_lists()[3]
-```
-
-Replace the number inside the square brackets with the index of the column you want to use. To list all the columns in a board and their indices, you can run the following script:
+2. To list all the columns in a board and their indices, you can run the following script:
 ```python
 all_lists = board.list_lists()
 for idx, trello_list in enumerate(all_lists):
     print(f"{idx}: {trello_list.name}")
 ```
+
+Make sure to update the `BOARDS_COLUMNS` variable in the `.env` file according to the indices of the boards and columns you want to use.
+
+
+### Access Restrictions
+
+By default, the bot only allows users with specific Telegram IDs to use its functionality. To grant access to a user, add their Telegram ID to the ALLOWED_USERS environment variable in the .env file.
+
+For example:
+
+```
+ALLOWED_USERS=123456789,987654321
+```
+
+This will grant access to users with Telegram IDs 987654321 and 123456789.
+
+If you want to allow all users to access the bot without restrictions, you can remove the ALLOWED_USERS variable from the .env file or set it to an empty value.
 
 
 ### Installation
@@ -59,6 +88,8 @@ TRELLO_API_KEY=<your Trello API key>
 TRELLO_API_SECRET=<your Trello API secret>
 TRELLO_API_TOKEN=<your Trello API token>
 SAVE_DIR=attachments
+BOARDS_COLUMNS: <A comma-separated list of board and column indices. For example: 0.0,1.0.>
+ALLOWED_USERS: <A comma-separated list of Telegram user IDs that are allowed to use the bot.>
 ```
 
 

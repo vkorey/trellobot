@@ -17,6 +17,9 @@ TRELLO_API_KEY = os.getenv("TRELLO_API_KEY")
 TRELLO_API_SECRET = os.getenv("TRELLO_API_SECRET")
 TRELLO_API_TOKEN = os.getenv("TRELLO_API_TOKEN")
 SAVE_DIR = os.getenv("SAVE_DIR")
+BOARDS_COLUMNS = os.getenv("BOARDS_COLUMNS").split(',')
+ALLOWED_USERS = [int(user_id) for user_id in os.getenv("ALLOWED_USERS").split(',')]
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,10 +31,17 @@ client = TrelloClient(
     api_secret=TRELLO_API_SECRET,
     token=TRELLO_API_TOKEN
 )
+boards_columns_tuples = [(int(x.strip().split('.')[0]), int(x.strip().split('.')[1])) for x in BOARDS_COLUMNS]
 
 # Создаем список досок Trello
-boards = client.list_boards()[4], client.list_boards()[5]
-boards_name = boards[0].name, boards[1].name
+boards = [client.list_boards()[board_index] for (board_index, _) in boards_columns_tuples]
+board_name_to_column = {
+    board.name: column_index
+    for board, (_, column_index) in zip(boards, boards_columns_tuples)
+}
+
+# Создаем список досок Trello
+boards_name = [board.name for board in boards]
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -54,9 +64,18 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 dp.middleware.setup(LoggingMiddleware(logger))
 
 
+def is_allowed_user(user_id):
+    return user_id in ALLOWED_USERS
+
+
 # Обработчик команды /start
 @dp.message_handler(commands=["start"])
 async def cmd_start(message: types.Message):
+    user_id = message.from_user.id
+    if not is_allowed_user(user_id):
+        await message.answer(f"You do not have permission to use this bot. Your id = {user_id} not in access list")
+        return
+
     reply_markup = types.ReplyKeyboardRemove()
     await message.answer(
         "To create a new card, enter the /new_bug command.",
@@ -68,8 +87,12 @@ async def cmd_start(message: types.Message):
 # Обработчик команды /new_bug
 @dp.message_handler(commands=["new_bug"], state=NewCard.waiting_to_start)
 async def process_start(message: types.Message, state: FSMContext):
-    global attachments
-    attachments = []
+    user_id = message.from_user.id
+    if not is_allowed_user(user_id):
+        await message.answer(f"You do not have permission to use this bot. Your id = {user_id} not in access list")
+        return
+    async with state.proxy() as data:
+        data["attachments"] = []
     board_names = [str(boards[0].name), str(boards[1].name)]
     reply_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for name in board_names:
@@ -185,16 +208,17 @@ async def attachments_get(document):
 async def process_done(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         close_keyboard = types.ReplyKeyboardRemove()
-        board = data["board"]
-        board = next(filter(lambda b: b.name == board, boards), None)
+        board_name = data["board"]
+        column_index = board_name_to_column[board_name]
         card_name = data["name"]
         card_description = data["description"]
+        card_attachments = data["attachments"]
         if card_attachments := attachments:
             await create_trello_card(
-                board, card_name, card_description, card_attachments
+                board_name, column_index, card_name, card_description, boards, card_attachments
             )
         else:
-            await create_trello_card(board, card_name, card_description)
+            await create_trello_card(board_name, column_index, card_name, card_description, boards)
         await message.answer(
             "Card successfully created!",
             reply_markup=close_keyboard
