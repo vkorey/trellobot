@@ -91,10 +91,8 @@ async def process_start(message: types.Message, state: FSMContext):
     if not is_allowed_user(user_id):
         await message.answer(f"You do not have permission to use this bot. Your id = {user_id} not in access list")
         return
-    async with state.proxy() as data:
-    board_names = [str(boards[0].name), str(boards[1].name)]
     reply_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for name in board_names:
+    for name in boards_name:
         reply_markup.add(name)
     await message.answer(
         "Select the board to create a new card on:",
