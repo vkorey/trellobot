@@ -92,7 +92,6 @@ async def process_start(message: types.Message, state: FSMContext):
         await message.answer(f"You do not have permission to use this bot. Your id = {user_id} not in access list")
         return
     async with state.proxy() as data:
-        data["attachments"] = []
     board_names = [str(boards[0].name), str(boards[1].name)]
     reply_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for name in board_names:
