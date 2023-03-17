@@ -91,6 +91,8 @@ async def process_start(message: types.Message, state: FSMContext):
     if not is_allowed_user(user_id):
         await message.answer(f"You do not have permission to use this bot. Your id = {user_id} not in access list")
         return
+    async with state.proxy() as data:
+        data["attachments"] = []
     reply_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for name in boards_name:
         reply_markup.add(name)
@@ -184,7 +186,8 @@ async def process_attachment(message: types.Message, state: FSMContext):
                     "Please attach files or enter /done to create the card:"
                 )
         else:
-            attachments.append(await attachments_get(message.document))
+            file_path = await attachments_get(message.document)
+            data["attachments"].append(file_path)
             await message.answer("Файл успешно добавлен!")
             await message.answer(
                 "If you want to add more files, attach them to the message, or enter /done to create the card:"
@@ -209,8 +212,7 @@ async def process_done(message: types.Message, state: FSMContext):
         column_index = board_name_to_column[board_name]
         card_name = data["name"]
         card_description = data["description"]
-        card_attachments = data["attachments"]
-        if card_attachments := attachments:
+        if card_attachments := data["attachments"]:
             await create_trello_card(
                 board_name, column_index, card_name, card_description, boards, card_attachments
             )
