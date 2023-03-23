@@ -1,5 +1,6 @@
 import os
 from aiogram import Bot, Dispatcher, types, executor
+from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -9,6 +10,7 @@ from aiogram.contrib.middlewares.logging import LoggingMiddleware
 import logging
 from trello_utils import create_trello_card
 from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 
@@ -17,8 +19,22 @@ TRELLO_API_KEY = os.getenv("TRELLO_API_KEY")
 TRELLO_API_SECRET = os.getenv("TRELLO_API_SECRET")
 TRELLO_API_TOKEN = os.getenv("TRELLO_API_TOKEN")
 SAVE_DIR = os.getenv("SAVE_DIR")
-BOARDS_COLUMNS = os.getenv("BOARDS_COLUMNS").split(',')
-ALLOWED_USERS = [int(user_id) for user_id in os.getenv("ALLOWED_USERS").split(',')]
+BOARDS_COLUMNS = os.getenv("BOARDS_COLUMNS").split(",")
+ALLOWED_USERS = [int(user_id) for user_id in os.getenv("ALLOWED_USERS").split(",")]
+
+
+class SequentialMiddleware(BaseMiddleware):
+    def __init__(self, max_concurrent_handlers: int = 1):
+        self._semaphore = asyncio.Semaphore(max_concurrent_handlers)
+        super().__init__()
+
+    async def on_pre_process_message(self, message: types.Message, data: dict):
+        await self._semaphore.acquire()
+
+    async def on_post_process_message(
+        self, message: types.Message, result: FSMContext, state: dict
+    ):
+        self._semaphore.release()
 
 
 logging.basicConfig(level=logging.INFO)
@@ -27,14 +43,16 @@ attachments = []
 
 # Создаем экземпляр клиента Trello
 client = TrelloClient(
-    api_key=TRELLO_API_KEY,
-    api_secret=TRELLO_API_SECRET,
-    token=TRELLO_API_TOKEN
+    api_key=TRELLO_API_KEY, api_secret=TRELLO_API_SECRET, token=TRELLO_API_TOKEN
 )
-boards_columns_tuples = [(int(x.strip().split('.')[0]), int(x.strip().split('.')[1])) for x in BOARDS_COLUMNS]
+boards_columns_tuples = [
+    (int(x.strip().split(".")[0]), int(x.strip().split(".")[1])) for x in BOARDS_COLUMNS
+]
 
 # Создаем список досок Trello
-boards = [client.list_boards()[board_index] for (board_index, _) in boards_columns_tuples]
+boards = [
+    client.list_boards()[board_index] for (board_index, _) in boards_columns_tuples
+]
 board_name_to_column = {
     board.name: column_index
     for board, (_, column_index) in zip(boards, boards_columns_tuples)
@@ -62,6 +80,8 @@ if not os.path.exists("attachments"):
 bot = Bot(token=str(TOKEN))
 dp = Dispatcher(bot, storage=MemoryStorage())
 dp.middleware.setup(LoggingMiddleware(logger))
+sequential_middleware = SequentialMiddleware()
+dp.middleware.setup(sequential_middleware)
 
 
 def is_allowed_user(user_id):
@@ -73,13 +93,14 @@ def is_allowed_user(user_id):
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     if not is_allowed_user(user_id):
-        await message.answer(f"You do not have permission to use this bot. Your id = {user_id} not in access list")
+        await message.answer(
+            f"You do not have permission to use this bot. Your id = {user_id} not in access list"
+        )
         return
 
     reply_markup = types.ReplyKeyboardRemove()
     await message.answer(
-        "To create a new card, enter the /new_bug command.",
-        reply_markup=reply_markup
+        "To create a new card, enter the /new_bug command.", reply_markup=reply_markup
     )
     await NewCard.waiting_to_start.set()
 
@@ -89,7 +110,9 @@ async def cmd_start(message: types.Message):
 async def process_start(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     if not is_allowed_user(user_id):
-        await message.answer(f"You do not have permission to use this bot. Your id = {user_id} not in access list")
+        await message.answer(
+            f"You do not have permission to use this bot. Your id = {user_id} not in access list"
+        )
         return
     async with state.proxy() as data:
         data["attachments"] = []
@@ -97,17 +120,14 @@ async def process_start(message: types.Message, state: FSMContext):
     for name in boards_name:
         reply_markup.add(name)
     await message.answer(
-        "Select the board to create a new card on:",
-        reply_markup=reply_markup
+        "Select the board to create a new card on:", reply_markup=reply_markup
     )
     await NewCard.waiting_for_board.set()
 
 
 # Обработчик выбора доски
 @dp.message_handler(
-    Text(equals=[boards[0].name,
-                 boards[1].name]),
-    state=NewCard.waiting_for_board
+    Text(equals=[boards[0].name, boards[1].name]), state=NewCard.waiting_for_board
 )
 async def process_board(message: types.Message, state: FSMContext):
     reply_markup = types.ReplyKeyboardRemove()
@@ -116,18 +136,14 @@ async def process_board(message: types.Message, state: FSMContext):
     board = next(filter(lambda b: b.name == board_name, boards), None)
     if not board:
         await message.answer(
-            "The selected board was not found!",
-            reply_markup=reply_markup
+            "The selected board was not found!", reply_markup=reply_markup
         )
         return
 
     async with state.proxy() as data:
         data["board"] = board.name
 
-    await message.answer(
-        "Enter the card's title:",
-        reply_markup=reply_markup
-    )
+    await message.answer("Enter the card's title:", reply_markup=reply_markup)
     await NewCard.waiting_for_name.set()
 
 
@@ -187,6 +203,8 @@ async def process_attachment(message: types.Message, state: FSMContext):
                 )
         else:
             file_path = await attachments_get(message.document)
+            if "attachments" not in data:
+                data["attachments"] = []
             data["attachments"].append(file_path)
             await message.answer("Файл успешно добавлен!")
             await message.answer(
@@ -214,14 +232,18 @@ async def process_done(message: types.Message, state: FSMContext):
         card_description = data["description"]
         if card_attachments := data["attachments"]:
             await create_trello_card(
-                board_name, column_index, card_name, card_description, boards, card_attachments
+                board_name,
+                column_index,
+                card_name,
+                card_description,
+                boards,
+                card_attachments,
             )
         else:
-            await create_trello_card(board_name, column_index, card_name, card_description, boards)
-        await message.answer(
-            "Card successfully created!",
-            reply_markup=close_keyboard
-        )
+            await create_trello_card(
+                board_name, column_index, card_name, card_description, boards
+            )
+        await message.answer("Card successfully created!", reply_markup=close_keyboard)
     await state.finish()
     await NewCard.waiting_to_start.set()
 
