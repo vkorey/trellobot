@@ -1,6 +1,5 @@
 import os
 from aiogram import Bot, Dispatcher, types, executor
-from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -10,7 +9,6 @@ from aiogram.contrib.middlewares.logging import LoggingMiddleware
 import logging
 from trello_utils import create_trello_card
 from dotenv import load_dotenv
-import asyncio
 
 load_dotenv()
 
@@ -21,20 +19,6 @@ TRELLO_API_TOKEN = os.getenv("TRELLO_API_TOKEN")
 SAVE_DIR = os.getenv("SAVE_DIR")
 BOARDS_COLUMNS = os.getenv("BOARDS_COLUMNS").split(",")
 ALLOWED_USERS = [int(user_id) for user_id in os.getenv("ALLOWED_USERS").split(",")]
-
-
-"""class SequentialMiddleware(BaseMiddleware):
-    def __init__(self, max_concurrent_handlers: int = 1):
-        self._semaphore = asyncio.Semaphore(max_concurrent_handlers)
-        super().__init__()
-
-    async def on_pre_process_message(self, message: types.Message, data: dict):
-        await self._semaphore.acquire()
-
-    async def on_post_process_message(
-        self, message: types.Message, result: FSMContext, state: dict
-    ):
-        self._semaphore.release()"""
 
 
 logging.basicConfig(level=logging.INFO)
