@@ -23,7 +23,7 @@ BOARDS_COLUMNS = os.getenv("BOARDS_COLUMNS").split(",")
 ALLOWED_USERS = [int(user_id) for user_id in os.getenv("ALLOWED_USERS").split(",")]
 
 
-class SequentialMiddleware(BaseMiddleware):
+"""class SequentialMiddleware(BaseMiddleware):
     def __init__(self, max_concurrent_handlers: int = 1):
         self._semaphore = asyncio.Semaphore(max_concurrent_handlers)
         super().__init__()
@@ -34,12 +34,11 @@ class SequentialMiddleware(BaseMiddleware):
     async def on_post_process_message(
         self, message: types.Message, result: FSMContext, state: dict
     ):
-        self._semaphore.release()
+        self._semaphore.release()"""
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-attachments = []
 
 # Создаем экземпляр клиента Trello
 client = TrelloClient(
@@ -80,8 +79,9 @@ if not os.path.exists("attachments"):
 bot = Bot(token=str(TOKEN))
 dp = Dispatcher(bot, storage=MemoryStorage())
 dp.middleware.setup(LoggingMiddleware(logger))
-sequential_middleware = SequentialMiddleware()
+"""sequential_middleware = SequentialMiddleware()
 dp.middleware.setup(sequential_middleware)
+"""
 
 
 def is_allowed_user(user_id):
@@ -193,24 +193,27 @@ async def process_description(message: types.Message, state: FSMContext):
     content_types=types.ContentTypes.ANY, state=NewCard.waiting_for_attachment
 )
 async def process_attachment(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        if message.content_type == "text":
-            if message.text == "/done":
-                await process_done(message, state)
-            else:
-                await message.answer(
-                    "Please attach files or enter /done to create the card:"
-                )
+    data = await state.get_data()
+
+    if "attachments" not in data:
+        data["attachments"] = []
+    if message.content_type == "text":
+        if message.text == "/done":
+            await process_done(message, state)
         else:
-            file_path = await attachments_get(message.document)
-            if "attachments" not in data:
-                data["attachments"] = []
-            data["attachments"].append(file_path)
-            await message.answer("Файл успешно добавлен!")
             await message.answer(
-                "If you want to add more files, attach them to the message, or enter /done to create the card:"
+                "Please attach files or enter /done to create the card:"
             )
-            await NewCard.waiting_for_attachment.set()
+    else:
+        filename = message.document.file_name
+        file_path = os.path.join(str(SAVE_DIR), filename)
+        data["attachments"].append(file_path)
+        await state.update_data(attachments=data["attachments"])
+        await message.document.download(file_path)
+        await message.answer(
+            "File successfully added! If you want to add more files, attach them to the message, or enter /done to create the card:"
+        )
+        await NewCard.waiting_for_attachment.set()
 
 
 async def attachments_get(document):

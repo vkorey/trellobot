@@ -15,6 +15,7 @@ async def create_trello_card(
     card = trello_list.add_card(card_name, card_description)
     if card_attachments:
         for attachment_path in card_attachments:
-            card.attach(name=os.path.basename(attachment_path), file=attachment_path)
+            with open(attachment_path, "rb") as file:  # Open the file in binary mode
+                card.attach(name=os.path.basename(attachment_path), file=file)
             os.remove(attachment_path)
     return True
